@@ -16,6 +16,8 @@ import {
   TouchableOpacity,
   View,
 } from 'react-native';
+import CustomModal from './components/CustomModal';
+import {Settings} from './components/Settings';
 
 const storage = new MMKVLoader()
   .withEncryption() // Generates a random key and stores it securely in Keychain
@@ -23,14 +25,19 @@ const storage = new MMKVLoader()
 function App(): JSX.Element {
   const [apiKey, setApiKey] = useMMKVStorage('api_key', storage, '');
   const [projectId, setProjectId] = useMMKVStorage('project_id', storage, '');
+  const [userPassword, setUserPassword] = useMMKVStorage(
+    'user_password',
+    storage,
+    '',
+  );
+  const [salt, setSalt] = useMMKVStorage('salt', storage, '');
+
   const [isColorChanged, setIsColorChanged] = useState(false);
-  // const [projectId, setProjectId] = useMMKVStorage('project_id', storage, '');
-  // storage.set(file_location,"");
-  //api_key
-  //project_id
-  //user_password
-  //salt
+  const [isModalVisible, setIsModalVisible] = useState(false);
+
   useEffect(() => {
+    if (!apiKey) {
+    }
     // return () => {
     //   second
     // }
@@ -39,27 +46,56 @@ function App(): JSX.Element {
   return (
     <SafeAreaView>
       <StatusBar barStyle={'dark-content'} backgroundColor={'black'} />
+      <CustomModal
+        setVisible={setIsModalVisible}
+        visible={isModalVisible}
+        label="Settings">
+        <View className="px-6 mt-5">
+          <Settings
+            apiKey={apiKey}
+            projectId={projectId}
+            userPassword={userPassword}
+            setApiKey={setApiKey}
+            setProjectId={setProjectId}
+            setUserPassword={setUserPassword}
+          />
+        </View>
+      </CustomModal>
       <View style={{backgroundColor: 'gray'}}>
         <TouchableOpacity
           style={styles.screenButton}
+          disabled={apiKey && userPassword && projectId ? false : true}
           onPressIn={() => setIsColorChanged(true)}
           onPressOut={() => setIsColorChanged(false)}>
           <Icon
             name="download-cloud"
             size={30}
-            color={isColorChanged ? '#000' : '#A480EE'}
+            color={
+              apiKey && userPassword && projectId
+                ? isColorChanged
+                  ? '#000'
+                  : '#A480EE'
+                : 'gray'
+            }
             style={{margin: 5}}
           />
           <Text
             style={
-              isColorChanged ? styles.textStylingWhite : styles.textStyling
+              apiKey && userPassword && projectId
+                ? isColorChanged
+                  ? styles.textStylingWhite
+                  : styles.textStyling
+                : styles.textStylingDisabled
             }>
             Pull to device
           </Text>
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settings}
-          onPressIn={() => setIsColorChanged(true)}
+          onPressIn={() => {
+            setIsColorChanged(true);
+            setIsModalVisible(!isModalVisible);
+          }}
           onPressOut={() => setIsColorChanged(false)}>
           <Icon
             name="settings"
@@ -77,16 +113,27 @@ function App(): JSX.Element {
         <TouchableOpacity
           style={styles.screenButton}
           onPressIn={() => setIsColorChanged(true)}
-          onPressOut={() => setIsColorChanged(false)}>
+          onPressOut={() => setIsColorChanged(false)}
+          disabled={apiKey && userPassword && projectId ? false : true}>
           <Icon
             name="upload-cloud"
             size={30}
-            color={isColorChanged ? '#000' : '#A480EE'}
+            color={
+              apiKey && userPassword && projectId
+                ? isColorChanged
+                  ? '#000'
+                  : '#A480EE'
+                : 'gray'
+            }
             style={{margin: 5}}
           />
           <Text
             style={
-              isColorChanged ? styles.textStylingWhite : styles.textStyling
+              apiKey && userPassword && projectId
+                ? isColorChanged
+                  ? styles.textStylingWhite
+                  : styles.textStyling
+                : styles.textStylingDisabled
             }>
             Push to cloud
           </Text>
@@ -113,6 +160,10 @@ const styles = StyleSheet.create({
   textStyling: {
     fontWeight: '700',
     color: '#A480EE',
+  },
+  textStylingDisabled: {
+    fontWeight: '700',
+    color: 'gray',
   },
   textStylingWhite: {
     fontWeight: '700',
