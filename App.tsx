@@ -5,93 +5,93 @@
  * @format
  */
 
-import React from 'react';
-import type {PropsWithChildren} from 'react';
+import React, {useEffect, useState} from 'react';
+import {MMKVLoader, useMMKVStorage} from 'react-native-mmkv-storage';
+import Icon from 'react-native-vector-icons/Feather';
 import {
   SafeAreaView,
-  ScrollView,
   StatusBar,
   StyleSheet,
   Text,
-  useColorScheme,
+  TouchableOpacity,
   View,
 } from 'react-native';
 
-import {
-  Colors,
-  DebugInstructions,
-  Header,
-  LearnMoreLinks,
-  ReloadInstructions,
-} from 'react-native/Libraries/NewAppScreen';
-
-type SectionProps = PropsWithChildren<{
-  title: string;
-}>;
-
-function Section({children, title}: SectionProps): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-  return (
-    <View style={styles.sectionContainer}>
-      <Text
-        style={[
-          styles.sectionTitle,
-          {
-            color: isDarkMode ? Colors.white : Colors.black,
-          },
-        ]}>
-        {title}
-      </Text>
-      <Text
-        style={[
-          styles.sectionDescription,
-          {
-            color: isDarkMode ? Colors.light : Colors.dark,
-          },
-        ]}>
-        {children}
-      </Text>
-    </View>
-  );
-}
-
+const storage = new MMKVLoader()
+  .withEncryption() // Generates a random key and stores it securely in Keychain
+  .initialize();
 function App(): JSX.Element {
-  const isDarkMode = useColorScheme() === 'dark';
-
-  const backgroundStyle = {
-    backgroundColor: isDarkMode ? Colors.darker : Colors.lighter,
-  };
+  const [apiKey, setApiKey] = useMMKVStorage('api_key', storage, '');
+  const [projectId, setProjectId] = useMMKVStorage('project_id', storage, '');
+  const [isColorChanged, setIsColorChanged] = useState(false);
+  // const [projectId, setProjectId] = useMMKVStorage('project_id', storage, '');
+  // storage.set(file_location,"");
+  //api_key
+  //project_id
+  //user_password
+  //salt
+  useEffect(() => {
+    // return () => {
+    //   second
+    // }
+  }, []);
 
   return (
-    <SafeAreaView style={backgroundStyle}>
-      <StatusBar
-        barStyle={isDarkMode ? 'light-content' : 'dark-content'}
-        backgroundColor={backgroundStyle.backgroundColor}
-      />
-      <ScrollView
-        contentInsetAdjustmentBehavior="automatic"
-        style={backgroundStyle}>
-        <Header />
-        <View
-          style={{
-            backgroundColor: isDarkMode ? Colors.black : Colors.white,
-          }}>
-          <Section title="Step One">
-            Edit <Text style={styles.highlight}>App.tsx</Text> to change this
-            screen and then come back to see your edits.
-          </Section>
-          <Section title="See Your Changes">
-            <ReloadInstructions />
-          </Section>
-          <Section title="Debug">
-            <DebugInstructions />
-          </Section>
-          <Section title="Learn More">
-            Read the docs to discover what to do next:
-          </Section>
-          <LearnMoreLinks />
-        </View>
-      </ScrollView>
+    <SafeAreaView>
+      <StatusBar barStyle={'dark-content'} backgroundColor={'black'} />
+      <View style={{backgroundColor: 'gray'}}>
+        <TouchableOpacity
+          style={styles.screenButton}
+          onPressIn={() => setIsColorChanged(true)}
+          onPressOut={() => setIsColorChanged(false)}>
+          <Icon
+            name="download-cloud"
+            size={30}
+            color={isColorChanged ? '#000' : '#A480EE'}
+            style={{margin: 5}}
+          />
+          <Text
+            style={
+              isColorChanged ? styles.textStylingWhite : styles.textStyling
+            }>
+            Pull to device
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.settings}
+          onPressIn={() => setIsColorChanged(true)}
+          onPressOut={() => setIsColorChanged(false)}>
+          <Icon
+            name="settings"
+            size={30}
+            color={isColorChanged ? '#000' : '#A480EE'}
+            style={{margin: 5}}
+          />
+          <Text
+            style={
+              isColorChanged ? styles.textStylingWhite : styles.textStyling
+            }>
+            Settings
+          </Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.screenButton}
+          onPressIn={() => setIsColorChanged(true)}
+          onPressOut={() => setIsColorChanged(false)}>
+          <Icon
+            name="upload-cloud"
+            size={30}
+            color={isColorChanged ? '#000' : '#A480EE'}
+            style={{margin: 5}}
+          />
+          <Text
+            style={
+              isColorChanged ? styles.textStylingWhite : styles.textStyling
+            }>
+            Push to cloud
+          </Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -110,8 +110,30 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '400',
   },
-  highlight: {
+  textStyling: {
     fontWeight: '700',
+    color: '#A480EE',
+  },
+  textStylingWhite: {
+    fontWeight: '700',
+    color: 'black',
+  },
+  screenButton: {
+    height: '40%',
+    width: '100%',
+    display: 'flex',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'black',
+    flexDirection: 'row',
+  },
+  settings: {
+    height: '20%',
+    width: '100%',
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'black',
+    flexDirection: 'row',
   },
 });
 
