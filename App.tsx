@@ -18,11 +18,100 @@ import {
 } from 'react-native';
 import CustomModal from './components/CustomModal';
 import {Settings} from './components/Settings';
+import Aes from 'react-native-aes-crypto';
+import RNFS from 'react-native-fs';
+import {zipWithPassword, unzipWithPassword} from 'react-native-zip-archive';
+var RNGRP = require('react-native-get-real-path');
 
+const generateKey = (
+  password: string,
+  iv: string,
+  cost = 100000,
+  length = 32,
+) => Aes.pbkdf2(password, iv, cost, length);
+
+const generateMyKey = async (
+  userPassword: string,
+  iv: string,
+  setIv: (value: string | ((prevValue: string) => string)) => void,
+) => {
+  if (!iv) {
+    const newIv = await Aes.randomKey(32);
+    setIv(newIv);
+  }
+  return generateKey(userPassword, iv);
+};
+
+// zipWithPassword(sourcePath, zipPath, password, encryptionType)
+//   .then((path) => {
+//     console.log(`Zip with encryption completed at ${path}`);
+//   })
+//   .catch((error) => {
+//     console.error('Error zipping with encryption:', error);
+//   });
+
+//   unzipWithPassword(sourcePath, targetPath, password)
+// .then((path) => {
+//   console.log(`unzip completed at ${path}`)
+// })
+// .catch((error) => {
+//   console.error(error)
+// })
+
+const createTempDirectory = async () => {
+  try {
+    const tempPath = RNFS.CachesDirectoryPath + '/ObsdianSyncTemp'; // Adjust the directory name as needed
+
+    // Check if the directory already exists, if not, create it
+    const directoryExists = await RNFS.exists(tempPath);
+    if (!directoryExists) {
+      await RNFS.mkdir(tempPath);
+      console.log('Temporary directory created:', tempPath);
+      return tempPath;
+    } else {
+      console.log('Temporary directory already exists:', tempPath);
+      return '';
+    }
+  } catch (error) {
+    console.error('Error creating temporary directory:', error);
+  }
+};
+
+async function pushToCloud(
+  userPassword: string,
+  iv: string,
+  setIv: (value: string | ((prevValue: string) => string)) => void,
+  fileLocation: string,
+) {
+  let gKey = await generateMyKey(userPassword, iv, setIv);
+  const tempLocation = createTempDirectory();
+  const encryptionType = 'AES-256';
+  // console.log(RNFS.DocumentDirectoryPath + '/');
+  RNGRP.getRealPathFromURI(fileLocation).then((filePath: string) =>
+    zipWithPassword(
+      filePath,
+      String(tempLocation + '/package.zip'),
+      gKey,
+      encryptionType as any,
+    )
+      .then(path => {
+        console.log(`Zip with encryption completed at ${path}`);
+      })
+      .catch(error => {
+        console.error('Error zipping with encryption:', error);
+      }),
+  );
+  // await RNFS.unlink(path);
+}
 const storage = new MMKVLoader()
   .withEncryption() // Generates a random key and stores it securely in Keychain
   .initialize();
 function App(): JSX.Element {
+  const [fileLocation, setFileLocation] = useMMKVStorage(
+    'file_location',
+    storage,
+    '',
+  );
   const [apiKey, setApiKey] = useMMKVStorage('api_key', storage, '');
   const [projectId, setProjectId] = useMMKVStorage('project_id', storage, '');
   const [userPassword, setUserPassword] = useMMKVStorage(
@@ -30,18 +119,16 @@ function App(): JSX.Element {
     storage,
     '',
   );
-  const [salt, setSalt] = useMMKVStorage('salt', storage, '');
+  const [iv, setIv] = useMMKVStorage('iv', storage, '');
 
   const [isColorChanged, setIsColorChanged] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
 
-  useEffect(() => {
-    if (!apiKey) {
-    }
-    // return () => {
-    //   second
-    // }
-  }, []);
+  // useEffect(() => {
+  //   // return () => {
+  //   //   second
+  //   // }
+  // }, []);
 
   return (
     <SafeAreaView>
@@ -52,12 +139,16 @@ function App(): JSX.Element {
         label="Settings">
         <View className="px-6 mt-5">
           <Settings
+            fileLocation={fileLocation}
+            setFileLocation={setFileLocation}
             apiKey={apiKey}
             projectId={projectId}
             userPassword={userPassword}
             setApiKey={setApiKey}
             setProjectId={setProjectId}
             setUserPassword={setUserPassword}
+            iv={iv}
+            setIv={setIv}
           />
         </View>
       </CustomModal>
@@ -65,7 +156,9 @@ function App(): JSX.Element {
         <TouchableOpacity
           style={styles.screenButton}
           disabled={apiKey && userPassword && projectId ? false : true}
-          onPressIn={() => setIsColorChanged(true)}
+          onPressIn={() => {
+            setIsColorChanged(true);
+          }}
           onPressOut={() => setIsColorChanged(false)}>
           <Icon
             name="download-cloud"
@@ -113,7 +206,10 @@ function App(): JSX.Element {
         <TouchableOpacity
           style={styles.screenButton}
           onPressIn={() => setIsColorChanged(true)}
-          onPressOut={() => setIsColorChanged(false)}
+          onPressOut={() => {
+            setIsColorChanged(false);
+            pushToCloud(userPassword, iv, setIv, fileLocation);
+          }}
           disabled={apiKey && userPassword && projectId ? false : true}>
           <Icon
             name="upload-cloud"
