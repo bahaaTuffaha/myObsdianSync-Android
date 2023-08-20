@@ -22,6 +22,7 @@ import Aes from 'react-native-aes-crypto';
 import RNFS from 'react-native-fs';
 import {zipWithPassword, unzipWithPassword} from 'react-native-zip-archive';
 var RNGRP = require('react-native-get-real-path');
+import {firebase} from './config';
 
 const generateKey = (
   password: string,
@@ -67,10 +68,10 @@ const createTempDirectory = async () => {
     if (!directoryExists) {
       await RNFS.mkdir(tempPath);
       console.log('Temporary directory created:', tempPath);
-      return tempPath;
+      return String(tempPath);
     } else {
       console.log('Temporary directory already exists:', tempPath);
-      return '';
+      return String(tempPath);
     }
   } catch (error) {
     console.error('Error creating temporary directory:', error);
@@ -83,43 +84,64 @@ async function pushToCloud(
   setIv: (value: string | ((prevValue: string) => string)) => void,
   fileLocation: string,
 ) {
-  let gKey = await generateMyKey(userPassword, iv, setIv);
-  const tempLocation = createTempDirectory();
-  const encryptionType = 'AES-256';
-  // console.log(RNFS.DocumentDirectoryPath + '/');
-  RNGRP.getRealPathFromURI(fileLocation).then((filePath: string) =>
-    zipWithPassword(
+  try {
+    let gKey = await generateMyKey(userPassword, iv, setIv);
+    const tempLocation = await createTempDirectory();
+    const encryptionType = 'AES-256';
+
+    const filePath = await RNGRP.getRealPathFromURI(fileLocation);
+
+    const zipPath = await zipWithPassword(
       filePath,
-      String(tempLocation + '/package.zip'),
+      tempLocation + '/package.enc',
       gKey,
       encryptionType as any,
-    )
-      .then(path => {
-        console.log(`Zip with encryption completed at ${path}`);
-      })
-      .catch(error => {
-        console.error('Error zipping with encryption:', error);
-      }),
-  );
-  // await RNFS.unlink(path);
+    );
+
+    console.log(`Zip with encryption completed at ${zipPath}`);
+
+    // Use Firebase Storage reference to upload the file
+    const storageRef = firebase.storage().ref().child('package.enc'); // Replace with desired storage location
+    const fileData = await RNFS.readFile(zipPath, 'base64');
+    const uploadTask = storageRef.put(fileData, {
+      contentType: 'application/zip',
+    });
+    // Handle the upload progress if needed
+    uploadTask.on('state_changed', snapshot => {
+      // You can track the upload progress here if needed
+      const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+      console.log(`Upload is ${progress}% done`);
+    });
+    await uploadTask;
+
+    console.log('File uploaded successfully.');
+    // Clean up temporary files if needed
+    await RNFS.unlink(zipPath);
+  } catch (error) {
+    console.error('Error:', error);
+  }
 }
-const storage = new MMKVLoader()
+const localStorage = new MMKVLoader()
   .withEncryption() // Generates a random key and stores it securely in Keychain
   .initialize();
 function App(): JSX.Element {
   const [fileLocation, setFileLocation] = useMMKVStorage(
     'file_location',
-    storage,
+    localStorage,
     '',
   );
-  const [apiKey, setApiKey] = useMMKVStorage('api_key', storage, '');
-  const [projectId, setProjectId] = useMMKVStorage('project_id', storage, '');
+  const [apiKey, setApiKey] = useMMKVStorage('api_key', localStorage, '');
+  const [projectId, setProjectId] = useMMKVStorage(
+    'project_id',
+    localStorage,
+    '',
+  );
   const [userPassword, setUserPassword] = useMMKVStorage(
     'user_password',
-    storage,
+    localStorage,
     '',
   );
-  const [iv, setIv] = useMMKVStorage('iv', storage, '');
+  const [iv, setIv] = useMMKVStorage('iv', localStorage, '');
 
   const [isColorChanged, setIsColorChanged] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
