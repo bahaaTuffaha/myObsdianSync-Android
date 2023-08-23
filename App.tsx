@@ -1,11 +1,4 @@
-/**
- * Sample React Native App
- * https://github.com/facebook/react-native
- *
- * @format
- */
-
-import React, {useEffect, useState} from 'react';
+import React, {Dispatch, SetStateAction, useEffect, useState} from 'react';
 import {MMKVLoader, useMMKVStorage} from 'react-native-mmkv-storage';
 import Icon from 'react-native-vector-icons/Feather';
 import {
@@ -20,46 +13,46 @@ import CustomModal from './components/CustomModal';
 import {Settings} from './components/Settings';
 import Aes from 'react-native-aes-crypto';
 import RNFS from 'react-native-fs';
-import {zipWithPassword, unzipWithPassword} from 'react-native-zip-archive';
-var RNGRP = require('react-native-get-real-path');
-import {firebase} from './config';
+import {pushToCloud} from './utils/pushToCloud';
+import {getFromCloud} from './utils/pullToDevice';
+import {sha256} from 'js-sha256';
+import {ActivityIndicator, MD2Colors} from 'react-native-paper';
 
-const generateKey = (
-  password: string,
-  iv: string,
-  cost = 100000,
-  length = 32,
-) => Aes.pbkdf2(password, iv, cost, length);
+const generateRandomPassword = (length = 12) => {
+  const characters =
+    'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+';
+  let password = '';
+  const characterCount = characters.length;
 
-const generateMyKey = async (
-  userPassword: string,
-  iv: string,
-  setIv: (value: string | ((prevValue: string) => string)) => void,
-) => {
-  if (!iv) {
-    const newIv = await Aes.randomKey(32);
-    setIv(newIv);
+  for (let i = 0; i < length; i++) {
+    const randomIndex = Math.floor(Math.random() * characterCount);
+    password += characters.charAt(randomIndex);
   }
-  return generateKey(userPassword, iv);
+
+  return password;
 };
 
-// zipWithPassword(sourcePath, zipPath, password, encryptionType)
-//   .then((path) => {
-//     console.log(`Zip with encryption completed at ${path}`);
-//   })
-//   .catch((error) => {
-//     console.error('Error zipping with encryption:', error);
-//   });
+// const generateKey = async (password: string, iv: string) => {
+//   // const keyBuffer = Aes.pbkdf2(password, iv, 100000, 256);
+//   // return base64.encode(await keyBuffer);
+//   const k = iv;
+//   // const hashedData = sha256(k);
+//   // console.log(hashedData);
+//   return k;
+// };
 
-//   unzipWithPassword(sourcePath, targetPath, password)
-// .then((path) => {
-//   console.log(`unzip completed at ${path}`)
-// })
-// .catch((error) => {
-//   console.error(error)
-// })
+export const generateMyKey = async (
+  userPassword: string,
+  setUserPassword: Dispatch<SetStateAction<string>>,
+) => {
+  if (!userPassword) {
+    const newIv = generateRandomPassword();
+    setUserPassword(newIv);
+  }
+  return userPassword;
+};
 
-const createTempDirectory = async () => {
+export const createTempDirectory = async () => {
   try {
     const tempPath = RNFS.CachesDirectoryPath + '/ObsdianSyncTemp'; // Adjust the directory name as needed
 
@@ -78,49 +71,6 @@ const createTempDirectory = async () => {
   }
 };
 
-async function pushToCloud(
-  userPassword: string,
-  iv: string,
-  setIv: (value: string | ((prevValue: string) => string)) => void,
-  fileLocation: string,
-) {
-  try {
-    let gKey = await generateMyKey(userPassword, iv, setIv);
-    const tempLocation = await createTempDirectory();
-    const encryptionType = 'AES-256';
-
-    const filePath = await RNGRP.getRealPathFromURI(fileLocation);
-
-    const zipPath = await zipWithPassword(
-      filePath,
-      tempLocation + '/package.enc',
-      gKey,
-      encryptionType as any,
-    );
-
-    console.log(`Zip with encryption completed at ${zipPath}`);
-
-    // Use Firebase Storage reference to upload the file
-    const storageRef = firebase.storage().ref().child('package.enc'); // Replace with desired storage location
-    const fileData = await RNFS.readFile(zipPath, 'base64');
-    const uploadTask = storageRef.put(fileData, {
-      contentType: 'application/zip',
-    });
-    // Handle the upload progress if needed
-    uploadTask.on('state_changed', snapshot => {
-      // You can track the upload progress here if needed
-      const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
-      console.log(`Upload is ${progress}% done`);
-    });
-    await uploadTask;
-
-    console.log('File uploaded successfully.');
-    // Clean up temporary files if needed
-    await RNFS.unlink(zipPath);
-  } catch (error) {
-    console.error('Error:', error);
-  }
-}
 const localStorage = new MMKVLoader()
   .withEncryption() // Generates a random key and stores it securely in Keychain
   .initialize();
@@ -141,10 +91,12 @@ function App(): JSX.Element {
     localStorage,
     '',
   );
-  const [iv, setIv] = useMMKVStorage('iv', localStorage, '');
+  // const [iv, setIv] = useMMKVStorage('iv', localStorage, '');
 
   const [isColorChanged, setIsColorChanged] = useState(false);
   const [isModalVisible, setIsModalVisible] = useState(false);
+  const [loading1, setLoading1] = useState(100);
+  const [loading2, setLoading2] = useState(100);
 
   // useEffect(() => {
   //   // return () => {
@@ -169,8 +121,8 @@ function App(): JSX.Element {
             setApiKey={setApiKey}
             setProjectId={setProjectId}
             setUserPassword={setUserPassword}
-            iv={iv}
-            setIv={setIv}
+            // iv={iv}
+            // setIv={setIv}
           />
         </View>
       </CustomModal>
@@ -180,30 +132,46 @@ function App(): JSX.Element {
           disabled={apiKey && userPassword && projectId ? false : true}
           onPressIn={() => {
             setIsColorChanged(true);
+            getFromCloud(
+              userPassword,
+              setUserPassword,
+              fileLocation,
+              loading1,
+              setLoading1,
+            );
           }}
           onPressOut={() => setIsColorChanged(false)}>
-          <Icon
-            name="download-cloud"
-            size={30}
-            color={
-              apiKey && userPassword && projectId
-                ? isColorChanged
-                  ? '#000'
-                  : '#A480EE'
-                : 'gray'
-            }
-            style={{margin: 5}}
-          />
-          <Text
-            style={
-              apiKey && userPassword && projectId
-                ? isColorChanged
-                  ? styles.textStylingWhite
-                  : styles.textStyling
-                : styles.textStylingDisabled
-            }>
-            Pull to device
-          </Text>
+          {loading1 < 100 ? (
+            <>
+              <ActivityIndicator animating={true} color={MD2Colors.purple400} />
+              <Text className="text-purple">{loading1.toFixed(1) + '%'}</Text>
+            </>
+          ) : (
+            <>
+              <Icon
+                name="download-cloud"
+                size={30}
+                color={
+                  apiKey && userPassword && projectId
+                    ? isColorChanged
+                      ? '#000'
+                      : '#A480EE'
+                    : 'gray'
+                }
+                style={{margin: 5}}
+              />
+              <Text
+                style={
+                  apiKey && userPassword && projectId
+                    ? isColorChanged
+                      ? styles.textStylingWhite
+                      : styles.textStyling
+                    : styles.textStylingDisabled
+                }>
+                Pull to device
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.settings}
@@ -230,31 +198,46 @@ function App(): JSX.Element {
           onPressIn={() => setIsColorChanged(true)}
           onPressOut={() => {
             setIsColorChanged(false);
-            pushToCloud(userPassword, iv, setIv, fileLocation);
+            pushToCloud(
+              userPassword,
+              setUserPassword,
+              fileLocation,
+              loading2,
+              setLoading2,
+            );
           }}
           disabled={apiKey && userPassword && projectId ? false : true}>
-          <Icon
-            name="upload-cloud"
-            size={30}
-            color={
-              apiKey && userPassword && projectId
-                ? isColorChanged
-                  ? '#000'
-                  : '#A480EE'
-                : 'gray'
-            }
-            style={{margin: 5}}
-          />
-          <Text
-            style={
-              apiKey && userPassword && projectId
-                ? isColorChanged
-                  ? styles.textStylingWhite
-                  : styles.textStyling
-                : styles.textStylingDisabled
-            }>
-            Push to cloud
-          </Text>
+          {loading2 < 100 ? (
+            <>
+              <ActivityIndicator animating={true} color={MD2Colors.purple400} />
+              <Text className="text-purple">{loading2.toFixed(1) + '%'}</Text>
+            </>
+          ) : (
+            <>
+              <Icon
+                name="upload-cloud"
+                size={30}
+                color={
+                  apiKey && userPassword && projectId
+                    ? isColorChanged
+                      ? '#000'
+                      : '#A480EE'
+                    : 'gray'
+                }
+                style={{margin: 5}}
+              />
+              <Text
+                style={
+                  apiKey && userPassword && projectId
+                    ? isColorChanged
+                      ? styles.textStylingWhite
+                      : styles.textStyling
+                    : styles.textStylingDisabled
+                }>
+                Push to cloud
+              </Text>
+            </>
+          )}
         </TouchableOpacity>
       </View>
     </SafeAreaView>
