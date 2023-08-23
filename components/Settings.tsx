@@ -2,6 +2,8 @@ import {View, TouchableOpacity} from 'react-native';
 import {TextInput} from 'react-native-paper';
 import Icon from 'react-native-vector-icons/Feather';
 import * as ScopedStorage from 'react-native-scoped-storage';
+import {useState} from 'react';
+var RNGRP = require('react-native-get-real-path');
 
 export const Settings = ({
   fileLocation,
@@ -12,9 +14,9 @@ export const Settings = ({
   setProjectId,
   userPassword,
   setUserPassword,
-  iv,
-  setIv,
-}: {
+}: // iv,
+// setIv,
+{
   apiKey: string;
   projectId: string;
   userPassword: string;
@@ -23,12 +25,13 @@ export const Settings = ({
   setProjectId: (value: string | ((prevValue: string) => string)) => void;
   setUserPassword: (value: string | ((prevValue: string) => string)) => void;
   setFileLocation: (value: string | ((prevValue: string) => string)) => void;
-  iv: string;
-  setIv: (value: string | ((prevValue: string) => string)) => void;
+  // iv: string;
+  // setIv: (value: string | ((prevValue: string) => string)) => void;
 }) => {
+  const [passwordVisible, setPasswordVisible] = useState(true);
   const pickDirectory = async () => {
     const selectedDir = await ScopedStorage.openDocumentTree(true);
-    setFileLocation(selectedDir.uri);
+    setFileLocation(await RNGRP.getRealPathFromURI(selectedDir.uri));
   };
 
   return (
@@ -64,19 +67,22 @@ export const Settings = ({
       />
       <TextInput
         mode="flat"
-        textContentType="password"
-        // style={styles.customWidth}
-        secureTextEntry={true}
-        label="Your password"
+        label="Password (Optional)"
         value={userPassword}
         onChange={text => setUserPassword(text.nativeEvent.text)}
-      />
-      <TextInput
-        mode="flat"
-        textContentType="name"
-        label="IV (Optional)"
-        value={iv}
-        onChange={text => setIv(text.nativeEvent.text)}
+        secureTextEntry={passwordVisible}
+        right={
+          <TextInput.Icon
+            name={() => (
+              <Icon
+                name={passwordVisible ? 'eye-off' : 'eye'}
+                size={28}
+                color={'#000'}
+              />
+            )}
+            onPress={() => setPasswordVisible(!passwordVisible)}
+          />
+        }
       />
       <View className="h-2"></View>
     </View>
