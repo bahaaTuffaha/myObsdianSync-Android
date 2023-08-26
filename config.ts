@@ -4,17 +4,17 @@ import 'firebase/compat/firestore';
 import 'firebase/compat/storage';
 
 const firebaseConfig = {
-  apiKey: 'AIzaSyCI1FZOpz2vyu_RD-5iCBy6XcbqCc0hFS8',
+  apiKey: '',
 
-  authDomain: 'sync-obsidian-a67f2.firebaseapp.com',
+  authDomain: '',
 
-  projectId: 'sync-obsidian-a67f2',
+  projectId: '',
 
-  storageBucket: 'sync-obsidian-a67f2.appspot.com',
+  storageBucket: '',
 
-  messagingSenderId: '902079444490',
+  messagingSenderId: '',
 
-  appId: '1:902079444490:web:5b7ba66d109139261ad1f3',
+  appId: '',
 };
 
 if (!firebase.apps.length) {
